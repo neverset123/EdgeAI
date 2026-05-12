@@ -1,8 +1,9 @@
 ## Edge AI
+
+https://neverset123.github.io/EdgeAI/
+
 - Serving YOLOv8 in browser using tensorflow.js with `webgl` backend.
 - Serving light-weighted guppylm-9M chat model
-
-Frontend: https://neverset123.github.io/EdgeAI/
 
 ```
 npm install
@@ -18,4 +19,5 @@ from ultralytics import YOLO
 model = YOLO("yolov8n.pt")
 model.export(format="tfjs")
 ```
-
+2. BYOM
+https://colab.research.google.com/github/arman-bd/guppylm/blob/main/train_guppylm.ipynb
