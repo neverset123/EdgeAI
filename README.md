@@ -8,6 +8,7 @@ https://neverset123.github.io/EdgeAI/
 ```
 npm install
 npm run build
+npm run preview
 npm run deploy # push dist dir to branch gh-pages
 ```
 
