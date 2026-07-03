@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Generation</title>
+<style>
+  /* ── Light theme (default) ── */
+  :root, [data-theme="light"] {
+    --bg: #f5f7fa; --surface: #ffffff; --border: #e0e4ea;
+    --text: #1a1a2e; --dim: #6b7280; --accent: #7c3aed;
+    --accent2: #a855f7; --logo-shadow: rgba(0,0,0,0.08);
+    --canvas-bg: #f0e6ff;
+  }
+  /* ── Dark theme ── */
+  [data-theme="dark"] {
+    --bg: #0d0a1a; --surface: #1a1030; --border: #2d1f4e;
+    --text: #e8d5ff; --dim: #8b7bb0; --accent: #a855f7;
+    --accent2: #c084fc; --logo-shadow: rgba(0,0,0,0.4);
+    --canvas-bg: #1a0d2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; height: 100vh;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  header .logo-icon { font-size: 28px; line-height: 1; }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header .tag {
+    font-size: 11px; color: var(--accent); border: 1px solid var(--accent);
+    padding: 2px 8px; border-radius: 12px;
+  }
+  header .spacer { margin-left: auto; }
+  header .status { font-size: 12px; color: var(--dim); }
+  #theme-toggle {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 8px; cursor: pointer; font-size: 16px; line-height: 1;
+  }
+
+  /* ── Main layout ── */
+  .main-content {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    padding: 20px; gap: 16px;
+  }
+
+  /* ── Mode toggle ── */
+  .mode-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .mode-btn {
+    padding: 7px 18px; border-radius: 20px; font-size: 13px;
+    font-family: inherit; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface); color: var(--dim);
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  [data-theme="dark"] .mode-btn.active { color: var(--bg); }
+
+  /* ── Two-column layout ── */
+  .workspace {
+    display: flex; gap: 16px; flex: 1; min-height: 0;
+  }
+  .left-panel {
+    display: flex; flex-direction: column; gap: 14px;
+    width: 320px; flex-shrink: 0;
+  }
+  .right-panel {
+    flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  }
+
+  /* ── Controls ── */
+  .ctrl-group { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl-label {
+    font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  textarea, input[type="text"], input[type="number"] {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 12px; border-radius: 8px;
+    font-family: inherit; font-size: 13px; outline: none; width: 100%;
+    resize: vertical;
+  }
+  textarea:focus, input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); }
+  textarea::placeholder, input[type="text"]::placeholder { color: var(--dim); }
+
+  /* ── Image upload ── */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 10px;
+    background: var(--surface); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 16px; gap: 8px;
+    transition: border-color 0.2s; min-height: 100px;
+    position: relative; overflow: hidden;
+  }
+  .upload-zone:hover { border-color: var(--accent); }
+  .upload-zone.has-image { padding: 0; }
+  .upload-zone img.preview {
+    width: 100%; height: 160px; object-fit: contain;
+    border-radius: 8px;
+  }
+  .upload-zone .upload-hint {
+    font-size: 12px; color: var(--dim); text-align: center;
+  }
+  .upload-zone .upload-icon { font-size: 28px; line-height: 1; }
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .clear-img-btn {
+    position: absolute; top: 6px; right: 6px; z-index: 2;
+    background: rgba(0,0,0,0.5); border: none; border-radius: 50%;
+    width: 24px; height: 24px; font-size: 14px; cursor: pointer;
+    color: white; display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+
+  /* ── Sliders ── */
+  .slider-row {
+    display: flex; gap: 10px; align-items: center;
+  }
+  input[type="range"] {
+    flex: 1; accent-color: var(--accent); cursor: pointer;
+  }
+  .slider-val {
+    font-size: 12px; color: var(--accent); min-width: 32px; text-align: right;
+  }
+
+  /* ── Select ── */
+  select {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 9px 12px; border-radius: 8px;
+    font-family: inherit; font-size: 13px; outline: none; cursor: pointer;
+    width: 100%;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* ── Generate button ── */
+  #gen-btn {
+    background: var(--accent); color: white; border: none;
+    padding: 12px; border-radius: 8px; font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    width: 100%; transition: opacity 0.2s;
+  }
+  [data-theme="dark"] #gen-btn { color: var(--bg); }
+  #gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #gen-btn:not(:disabled):hover { opacity: 0.88; }
+
+  /* ── Output canvas / result ── */
+  .output-area {
+    flex: 1; background: var(--canvas-bg); border: 1px solid var(--border);
+    border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 300px;
+    position: relative; overflow: hidden; padding: 12px;
+  }
+  .output-area img {
+    max-width: 100%; max-height: 100%; border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  }
+  .output-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    color: var(--dim);
+  }
+  .output-placeholder .big-icon { font-size: 56px; line-height: 1; opacity: 0.5; }
+  .output-placeholder p { font-size: 13px; }
+
+  /* ── Progress / status bar ── */
+  .progress-bar-wrap {
+    width: 80%; max-width: 320px; background: var(--border);
+    border-radius: 4px; overflow: hidden; height: 6px; display: none;
+  }
+  .progress-bar {
+    height: 100%; background: var(--accent);
+    border-radius: 4px; transition: width 0.3s;
+    width: 0%;
+  }
+  .progress-label {
+    font-size: 12px; color: var(--dim); margin-top: 8px; display: none;
+  }
+
+  /* ── Output footer: stats + download ── */
+  .output-footer {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--dim); flex-wrap: wrap;
+  }
+  .stat-chip {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 12px;
+  }
+  #download-btn {
+    margin-left: auto; background: none; border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 14px; font-family: inherit;
+    font-size: 12px; color: var(--dim); cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  #download-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #download-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Error toast ── */
+  #error-toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #ef4444; color: white; padding: 10px 20px;
+    border-radius: 8px; font-size: 13px; display: none; z-index: 200;
+    max-width: 90vw; text-align: center;
+  }
+
+  /* ── Connection indicator ── */
+  .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--dim); margin-right: 4px;
+  }
+  .dot.green { background: #22c55e; }
+  .dot.red { background: #ef4444; }
+  .dot.yellow { background: #eab308; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Space info box ── */
+  #server-info {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; font-size: 12px; color: var(--dim);
+    line-height: 1.8;
+  }
+  #server-info code {
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px; font-size: 11px; color: var(--accent2);
+    font-family: inherit;
+  }
+  .space-row {
+    display: flex; gap: 6px; align-items: center; margin-top: 8px;
+  }
+  .space-row input {
+    flex: 1; padding: 7px 10px; font-size: 12px; resize: none;
+  }
+  .space-row button {
+    background: var(--accent); color: white; border: none;
+    border-radius: 6px; padding: 7px 12px; font-family: inherit;
+    font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+  [data-theme="dark"] .space-row button { color: var(--bg); }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .workspace { flex-direction: column; }
+    .left-panel { width: 100%; }
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo-icon">&#x2728;</span>
+  <h1>Image Edit</h1>
+  <span class="tag">0.39B &middot; Diffusion</span>
+  <span class="spacer"></span>
+  <span class="status" id="status">
+    <span class="dot yellow" id="status-dot"></span>
+    <span id="status-text">connecting...</span>
+  </span>
+  <button id="theme-toggle" title="Toggle dark/light mode">&#9790;</button>
+</header>
+
+<div class="main-content">
+
+  <!-- Mode toggle -->
+  <div class="mode-row">
+    <span style="font-size:12px;color:var(--dim);">Mode:</span>
+    <button class="mode-btn active" id="btn-t2i" onclick="setMode('t2i')">&#x1F4AC; Text-to-Image</button>
+    <button class="mode-btn" id="btn-edit" onclick="setMode('edit')">&#x270F;&#xFE0F; Image Editing</button>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace">
+
+    <!-- Left: controls -->
+    <div class="left-panel">
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Model</div>
+        <select id="model-select" onchange="onModelChange()">
+          <option value="DreamLite-base">DreamLite-base (28 steps, multi-res)</option>
+          <option value="DreamLite-mobile">DreamLite-mobile (4 steps, fast)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Prompt</div>
+        <textarea id="prompt" rows="4" placeholder="a portrait of a young woman with flowers in her hair, cinematic lighting"></textarea>
+      </div>
+
+      <!-- Image upload (edit mode only) -->
+      <div class="ctrl-group hidden" id="upload-group">
+        <div class="ctrl-label">Input Image</div>
+        <div class="upload-zone" id="upload-zone">
+          <span class="upload-icon">&#x1F5BC;&#xFE0F;</span>
+          <span class="upload-hint">Click or drag an image here</span>
+          <input type="file" id="img-file" accept="image/*" onchange="onFileChange(event)" />
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Steps
+          <span class="slider-val" id="steps-val">28</span>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="steps" min="1" max="50" value="28"
+            oninput="document.getElementById('steps-val').textContent=this.value" />
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Guidance Scale
+          <span class="slider-val" id="cfg-val">3.5</span>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="cfg" min="0" max="20" step="0.1" value="3.5"
+            oninput="document.getElementById('cfg-val').textContent=(+this.value).toFixed(1)" />
+        </div>
+      </div>
+
+      <div class="ctrl-group hidden" id="img-cfg-group">
+        <div class="ctrl-label">Image Guidance
+          <span class="slider-val" id="img-cfg-val">1.0</span>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="img-cfg" min="0" max="5" step="0.1" value="1.0"
+            oninput="document.getElementById('img-cfg-val').textContent=(+this.value).toFixed(1)" />
+        </div>
+      </div>
+
+      <div class="ctrl-group" id="resolution-group">
+        <div class="ctrl-label">Resolution</div>
+        <select id="resolution">
+          <option value="1024 × 1024 (1:1)" selected>1024 × 1024 (1:1)</option>
+          <option value="1152 × 896 (9:7)">1152 × 896 (9:7)</option>
+          <option value="896 × 1152 (7:9)">896 × 1152 (7:9)</option>
+          <option value="1216 × 832 (3:2)">1216 × 832 (3:2)</option>
+          <option value="832 × 1216 (2:3)">832 × 1216 (2:3)</option>
+          <option value="1344 × 768 (16:9)">1344 × 768 (16:9)</option>
+          <option value="768 × 1344 (9:16)">768 × 1344 (9:16)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">Seed</div>
+        <input type="number" id="seed" value="42" min="0" max="999999" />
+      </div>
+
+      <button id="gen-btn" onclick="generate()" disabled>Generate</button>
+
+      <!-- Space connection info -->
+      <div id="server-info">
+        <strong style="color:var(--text);">Connecting to HF Space&hellip;</strong><br>
+        Using <code>carlofkl/DreamLite</code> on Hugging Face.<br>
+        No local backend required.<br><br>
+        <span style="color:var(--text);font-size:11px;">Custom Space / local server:</span>
+        <div class="space-row">
+          <input type="text" id="space-input" placeholder="carlofkl/DreamLite or http://localhost:8787" />
+          <button onclick="reconnect()">Connect</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: output -->
+    <div class="right-panel">
+      <div class="output-area" id="output-area">
+        <div class="output-placeholder" id="output-placeholder">
+          <span class="big-icon">&#x2728;</span>
+          <p>Generated image will appear here</p>
+        </div>
+        <div class="progress-bar-wrap" id="progress-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-label" id="progress-label">Generating...</div>
+        <img id="result-img" class="hidden" alt="Generated image" crossorigin="anonymous" />
+      </div>
+      <div class="output-footer">
+        <span class="stat-chip hidden" id="stat-time"></span>
+        <span class="stat-chip hidden" id="stat-steps"></span>
+        <span class="stat-chip hidden" id="stat-res"></span>
+        <button id="download-btn" disabled onclick="downloadResult()">&#x2B07; Download</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="error-toast"></div>
+
+<script type="module">
+import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+
+// ── State ─────────────────────────────────────────────────────────────
+let client = null;
+let clientType = "space"; // "space" | "local"
+let inputImageFile = null;
+let isGenerating = false;
+let lastResultUrl = null;
+
+const DEFAULT_SPACE = "carlofkl/DreamLite";
+
+// ── Theme toggle ───────────────────────────────────────────────────────
+const themeBtn = document.getElementById("theme-toggle");
+themeBtn.addEventListener("click", () => {
+  const html = document.documentElement;
+  const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  html.setAttribute("data-theme", next);
+  themeBtn.textContent = next === "dark" ? "\u2600" : "\u263E";
+  localStorage.setItem("dl-theme", next);
+});
+const savedTheme = localStorage.getItem("dl-theme");
+if (savedTheme) {
+  document.documentElement.setAttribute("data-theme", savedTheme);
+  themeBtn.textContent = savedTheme === "dark" ? "\u2600" : "\u263E";
+}
+
+// ── Status helpers ─────────────────────────────────────────────────────
+function setStatus(color, text) {
+  document.getElementById("status-dot").className = `dot ${color}`;
+  document.getElementById("status-text").textContent = text;
+}
+
+function showError(msg) {
+  const toast = document.getElementById("error-toast");
+  toast.textContent = msg;
+  toast.style.display = "block";
+  setTimeout(() => { toast.style.display = "none"; }, 5000);
+}
+
+// ── Mode switching ─────────────────────────────────────────────────────
+window.setMode = function(m) {
+  window._mode = m;
+  document.getElementById("btn-t2i").classList.toggle("active", m === "t2i");
+  document.getElementById("btn-edit").classList.toggle("active", m === "edit");
+  document.getElementById("upload-group").classList.toggle("hidden", m === "t2i");
+  document.getElementById("img-cfg-group").classList.toggle("hidden", m === "t2i");
+};
+window._mode = "t2i";
+
+// ── Model change ───────────────────────────────────────────────────────
+window.onModelChange = function() {
+  const m = document.getElementById("model-select").value;
+  if (m === "DreamLite-mobile") {
+    document.getElementById("steps").value = 4;
+    document.getElementById("steps-val").textContent = "4";
+    document.getElementById("cfg").value = 3.5;
+    document.getElementById("cfg-val").textContent = "3.5";
+  } else {
+    document.getElementById("steps").value = 28;
+    document.getElementById("steps-val").textContent = "28";
+    document.getElementById("cfg").value = 3.5;
+    document.getElementById("cfg-val").textContent = "3.5";
+  }
+};
+
+// ── File upload ────────────────────────────────────────────────────────
+window.onFileChange = function(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  inputImageFile = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const zone = document.getElementById("upload-zone");
+    zone.classList.add("has-image");
+    zone.innerHTML = "";
+    const img = document.createElement("img");
+    img.className = "preview";
+    img.src = e.target.result;
+    const clearBtn = document.createElement("button");
+    clearBtn.className = "clear-img-btn";
+    clearBtn.innerHTML = "&#x2715;";
+    clearBtn.onclick = (ev) => { ev.stopPropagation(); window.clearImage(); };
+    const fi = document.createElement("input");
+    fi.type = "file"; fi.id = "img-file"; fi.accept = "image/*";
+    fi.onchange = window.onFileChange;
+    zone.appendChild(img);
+    zone.appendChild(clearBtn);
+    zone.appendChild(fi);
+  };
+  reader.readAsDataURL(file);
+};
+
+window.clearImage = function() {
+  inputImageFile = null;
+  const zone = document.getElementById("upload-zone");
+  zone.classList.remove("has-image");
+  zone.innerHTML = `
+    <span class="upload-icon">&#x1F5BC;&#xFE0F;</span>
+    <span class="upload-hint">Click or drag an image here</span>
+    <input type="file" id="img-file" accept="image/*" onchange="onFileChange(event)" />
+  `;
+};
+
+// Drag & drop
+const uploadZone = document.getElementById("upload-zone");
+uploadZone.addEventListener("dragover", (e) => { e.preventDefault(); uploadZone.style.borderColor = "var(--accent)"; });
+uploadZone.addEventListener("dragleave", () => { uploadZone.style.borderColor = ""; });
+uploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  uploadZone.style.borderColor = "";
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) {
+    inputImageFile = file;
+    window.onFileChange({ target: { files: [file] } });
+  }
+});
+
+// ── Connection ─────────────────────────────────────────────────────────
+async function connectSpace(spaceId) {
+  setStatus("yellow", "connecting...");
+  document.getElementById("gen-btn").disabled = true;
+  try {
+    client = await Client.connect(spaceId);
+    clientType = "space";
+    setStatus("green", `ready — ${spaceId.split("/").pop()}`);
+    document.getElementById("gen-btn").disabled = false;
+    document.getElementById("server-info").classList.add("hidden");
+  } catch (e) {
+    client = null;
+    setStatus("red", "space unavailable");
+    document.getElementById("server-info").classList.remove("hidden");
+    console.error("Space connect error:", e);
+  }
+}
+
+async function connectLocal(baseUrl) {
+  setStatus("yellow", "connecting...");
+  document.getElementById("gen-btn").disabled = true;
+  try {
+    const r = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error("health check failed");
+    const data = await r.json();
+    client = baseUrl;
+    clientType = "local";
+    setStatus("green", `ready — ${data.model || "local"}`);
+    document.getElementById("gen-btn").disabled = false;
+    document.getElementById("server-info").classList.add("hidden");
+  } catch (e) {
+    client = null;
+    setStatus("red", "server offline");
+    document.getElementById("server-info").classList.remove("hidden");
+  }
+}
+
+window.reconnect = async function() {
+  const val = document.getElementById("space-input").value.trim() || DEFAULT_SPACE;
+  localStorage.setItem("dl-endpoint", val);
+  if (val.startsWith("http://") || val.startsWith("https://")) {
+    await connectLocal(val);
+  } else {
+    await connectSpace(val);
+  }
+};
+
+// ── Progress helpers ───────────────────────────────────────────────────
+function showProgress(steps) {
+  const progressWrap = document.getElementById("progress-wrap");
+  const progressBar = document.getElementById("progress-bar");
+  const progressLabel = document.getElementById("progress-label");
+  const placeholder = document.getElementById("output-placeholder");
+  const resultImg = document.getElementById("result-img");
+
+  placeholder.classList.add("hidden");
+  resultImg.classList.add("hidden");
+  progressWrap.style.display = "block";
+  progressBar.style.width = "0%";
+  progressLabel.style.display = "block";
+  progressLabel.textContent = "Queued...";
+  document.getElementById("output-area").classList.add("generating");
+}
+
+function updateProgress(step, total) {
+  const pct = Math.min(90, (step / total) * 85);
+  document.getElementById("progress-bar").style.width = pct + "%";
+  document.getElementById("progress-label").textContent = `Generating... ${step} / ${total}`;
+}
+
+function hideProgress() {
+  document.getElementById("progress-wrap").style.display = "none";
+  document.getElementById("progress-label").style.display = "none";
+  document.getElementById("output-area").classList.remove("generating");
+}
+
+function showResult(url, elapsed, steps, resolution) {
+  document.getElementById("progress-bar").style.width = "100%";
+  document.getElementById("progress-label").textContent = "Done!";
+  setTimeout(() => {
+    hideProgress();
+    const resultImg = document.getElementById("result-img");
+    resultImg.src = url;
+    resultImg.classList.remove("hidden");
+    lastResultUrl = url;
+    document.getElementById("stat-time").textContent = `${elapsed}s`;
+    document.getElementById("stat-steps").textContent = `${steps} steps`;
+    document.getElementById("stat-res").textContent = resolution.split(" (")[0];
+    document.getElementById("stat-time").classList.remove("hidden");
+    document.getElementById("stat-steps").classList.remove("hidden");
+    document.getElementById("stat-res").classList.remove("hidden");
+    document.getElementById("download-btn").disabled = false;
+  }, 400);
+}
+
+// ── Generate via HF Space (Gradio client) ─────────────────────────────
+async function generateViaSpace(model, prompt, imageFile, resolution, steps, cfg, imgCfg, seed) {
+  // fn_index 1 = submit_btn.click in tools/app.py
+  // inputs: [model_choice, prompt_input, image_input, resolution_dropdown,
+  //          steps_slider, guidance_slider, img_guidance_slider, seed_slider]
+  const inputs = [model, prompt, imageFile || null, resolution, steps, cfg, imgCfg, seed];
+
+  const job = client.submit(1, inputs);
+  let stepCount = 0;
+  const t0 = performance.now();
+
+  for await (const msg of job) {
+    if (msg.type === "status") {
+      if (msg.stage === "pending") {
+        document.getElementById("progress-label").textContent = "Queued on Space...";
+      } else if (msg.stage === "generating") {
+        stepCount++;
+        updateProgress(stepCount, steps);
+      } else if (msg.stage === "complete") {
+        // handled by data message
+      }
+    }
+    if (msg.type === "data") {
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+      const raw = msg.data[0];
+      // Gradio image output: string URL, {url:...}, or {name:..., is_file:true}
+      let url;
+      if (typeof raw === "string") {
+        url = raw;
+      } else if (raw?.url) {
+        url = raw.url;
+      } else if (raw?.name) {
+        // Older Gradio: reconstruct URL from space base
+        const base = `https://carlofkl-dreamlite.hf.space/file=${raw.name}`;
+        url = base;
+      } else {
+        throw new Error("Unexpected image format from Space");
+      }
+      return { url, elapsed };
+    }
+    if (msg.type === "error") {
+      throw new Error(msg.message || "Space inference failed");
+    }
+  }
+  throw new Error("No result received from Space");
+}
+
+// ── Generate via local server (REST API) ──────────────────────────────
+async function generateViaLocal(baseUrl, mode, prompt, imageFile, resolution, steps, cfg, imgCfg, seed) {
+  // Convert File to base64 if needed
+  let imageB64 = null;
+  if (imageFile) {
+    imageB64 = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result.split(",")[1]);
+      reader.readAsDataURL(imageFile);
+    });
+  }
+
+  // Parse size from resolution string (e.g. "1024 × 1024 (1:1)" -> 1024)
+  const sizeMatch = resolution.match(/(\d+)\s*[×x]\s*(\d+)/);
+  const width = sizeMatch ? parseInt(sizeMatch[1]) : 1024;
+  const height = sizeMatch ? parseInt(sizeMatch[2]) : 1024;
+
+  // Fake progress since local server doesn't stream
+  let fakeStep = 0;
+  const fakeTimer = setInterval(() => {
+    fakeStep++;
+    updateProgress(fakeStep, steps);
+  }, 800);
+
+  const t0 = performance.now();
+  try {
+    const resp = await fetch(`${baseUrl}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt, mode,
+        num_steps: steps, guidance_scale: cfg,
+        image_guidance_scale: imgCfg,
+        width, height, seed,
+        image: imageB64,
+      }),
+    });
+    clearInterval(fakeTimer);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || "Generation failed");
+    }
+    const data = await resp.json();
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+    return { url: `data:image/png;base64,${data.image}`, elapsed };
+  } catch (e) {
+    clearInterval(fakeTimer);
+    throw e;
+  }
+}
+
+// ── Main generate ──────────────────────────────────────────────────────
+window.generate = async function() {
+  if (isGenerating || !client) return;
+  const prompt = document.getElementById("prompt").value.trim();
+  if (!prompt) { showError("Please enter a prompt."); return; }
+  if (window._mode === "edit" && !inputImageFile) { showError("Please upload an input image for editing."); return; }
+
+  isGenerating = true;
+  document.getElementById("gen-btn").disabled = true;
+  document.getElementById("gen-btn").textContent = "Generating...";
+
+  const model = document.getElementById("model-select").value;
+  const steps = parseInt(document.getElementById("steps").value);
+  const cfg = parseFloat(document.getElementById("cfg").value);
+  const imgCfg = parseFloat(document.getElementById("img-cfg").value);
+  const resolution = document.getElementById("resolution").value;
+  const seed = parseInt(document.getElementById("seed").value) || 42;
+
+  showProgress(steps);
+
+  try {
+    let result;
+    if (clientType === "space") {
+      result = await generateViaSpace(model, prompt, inputImageFile, resolution, steps, cfg, imgCfg, seed);
+    } else {
+      result = await generateViaLocal(client, window._mode, prompt, inputImageFile, resolution, steps, cfg, imgCfg, seed);
+    }
+    showResult(result.url, result.elapsed, steps, resolution);
+  } catch (err) {
+    hideProgress();
+    document.getElementById("output-placeholder").classList.remove("hidden");
+    showError(err.message);
+  } finally {
+    isGenerating = false;
+    document.getElementById("gen-btn").disabled = false;
+    document.getElementById("gen-btn").textContent = "Generate";
+  }
+};
+
+// ── Download ───────────────────────────────────────────────────────────
+window.downloadResult = function() {
+  if (!lastResultUrl) return;
+  if (lastResultUrl.startsWith("data:")) {
+    const a = document.createElement("a");
+    a.href = lastResultUrl;
+    a.download = `dreamlite_${Date.now()}.png`;
+    a.click();
+  } else {
+    // For remote URLs (HF Space), fetch and save
+    fetch(lastResultUrl)
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `dreamlite_${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => window.open(lastResultUrl, "_blank"));
+  }
+};
+
+// ── Keyboard shortcut ──────────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") window.generate();
+});
+
+// ── Init ───────────────────────────────────────────────────────────────
+(async () => {
+  const saved = localStorage.getItem("dl-endpoint") || DEFAULT_SPACE;
+  document.getElementById("space-input").value = saved;
+  if (saved.startsWith("http://") || saved.startsWith("https://")) {
+    await connectLocal(saved);
+  } else {
+    await connectSpace(saved);
+  }
+})();
+</script>
+</body>
+</html>
